@@ -1,8 +1,19 @@
 #!/usr/bin/env ruby
 
+def default_base_branch
+  origin_head = `git rev-parse --abbrev-ref origin/HEAD 2>/dev/null`.strip
+  return origin_head.sub("origin/", "") if origin_head.start_with?("origin/")
+
+  return "main" if system("git show-ref --verify --quiet refs/heads/main")
+  return "master" if system("git show-ref --verify --quiet refs/heads/master")
+
+  "main"
+end
+
 staged_diff = `git diff --cached`
 has_staged_changes = !`git diff --cached --name-only`.strip.empty?
-diff = has_staged_changes ? staged_diff : `git diff main..HEAD`
+base_branch = default_base_branch
+diff = has_staged_changes ? staged_diff : `git diff #{base_branch}..HEAD`
 
 prompt = if has_staged_changes
   <<~PROMPT
