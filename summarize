@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+
+staged_diff = `git diff --cached`
+has_staged_changes = !`git diff --cached --name-only`.strip.empty?
+diff = has_staged_changes ? staged_diff : `git diff main..HEAD`
+
+prompt = if has_staged_changes
+  <<~PROMPT
+    Instruction:
+      - Write a commit message summarizing the change in ≤ 80 characters.
+      - Optionally add a short description if more explanation is needed.
+      - Do not include labels like "Commit Message" or "Description".
+      - Output is strict: line 1 is the commit message; if present, line 2 is the description, with no blank lines.
+  PROMPT
+else
+  <<~PROMPT
+    Instruction:
+      - Write a Pull Request description using the Template below.
+      - Output as a plain-text Markdown code block.
+    Template:
+    ## What
+    Briefly describe what changes this pull request introduces.
+    ## Why
+    Explain why this pull request is necessary, clearly and concisely.
+    ## How
+    List how the changes were implemented, using short bullet points.
+  PROMPT
+end
+
+IO.popen('pbcopy', 'w') do |f|
+  f << diff
+  f << "\n======================\n"
+  f << prompt
+end
+
+def wrap_in_color(text, color="success")
+  color_mapping = {
+    "failure" => 31,
+    "success" => 32,
+  }
+  "\e[#{color_mapping[color]}m#{text}\e[0m"
+end
+
+puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
