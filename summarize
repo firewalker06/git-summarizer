@@ -3,6 +3,7 @@
 require "json"
 require "net/http"
 require "uri"
+require "open3"
 
 def default_base_branch
   origin_head = `git rev-parse --abbrev-ref origin/HEAD 2>/dev/null`.strip
@@ -17,7 +18,13 @@ end
 staged_diff = `git diff --cached`
 has_staged_changes = !`git diff --cached --name-only`.strip.empty?
 base_branch = default_base_branch
-diff = has_staged_changes ? staged_diff : `git diff #{base_branch}..HEAD`
+diff = if has_staged_changes
+  staged_diff
+else
+  stdout, status = Open3.capture2("git", "diff", "#{base_branch}..HEAD")
+  raise "git diff failed: #{status.exitstatus}" unless status.success?
+  stdout
+end
 
 prompt = if has_staged_changes
   <<~PROMPT
@@ -71,6 +78,15 @@ def copy_to_clipboard(text)
   IO.popen("pbcopy", "w") { |f| f << text }
 end
 
+def consent_granted?(approval_flag)
+  return true if approval_flag == "1"
+
+  print "🤖 Do you have necessary consent for this code? [y/N]: "
+  STDOUT.flush
+  answer = STDIN.gets
+  answer && answer.strip.casecmp("y").zero?
+end
+
 def fetch_ai_summary(secret_key, prompt, diff)
   uri = URI("https://api.openai.com/v1/chat/completions")
   http = Net::HTTP.new(uri.host, uri.port)
@@ -102,9 +118,10 @@ end
 
 diff_and_prompt = "#{diff}\n======================\n#{prompt}"
 openai_secret_key = load_env_value("OPENAI_SECRET_KEY")
+approval_flag = load_env_value("APPROVE_AI_REQUEST")
 
 begin
-  if openai_secret_key
+  if openai_secret_key && consent_granted?(approval_flag)
     ai_response = fetch_ai_summary(openai_secret_key, prompt, diff)
     copy_to_clipboard(ai_response)
     puts wrap_in_color("🤖 The recommended Git Commit / Pull Request Message has been copied to your clipboard")
@@ -113,7 +130,7 @@ begin
     puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
   end
 rescue => e
-  warn wrap_in_color("⚠️  #{e.message}. Falling back to diff and prompt.", "failure")
+  warn wrap_in_color("⚠️ #{e.message}. Falling back to diff and prompt.", "failure")
   copy_to_clipboard(diff_and_prompt)
   puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
 end
