@@ -54,6 +54,15 @@ Make sure `~/bin` is on your PATH if you use the symlink approach.
   2. Run the script
   3. Paste into your LLM and use the response as your PR description
 
+If you want the script to talk directly to OpenAI, create a `.env` file in this repo that includes your API key and consent preference:
+
+```
+OPENAI_SECRET_KEY=sk-...
+APPROVE_AI_REQUEST=0 # set to 1 to skip the consent prompt
+```
+
+With `APPROVE_AI_REQUEST=0` (or unset) the script will ask your consent before sending your diff to the API.
+
 ## Example output
 
 Commit message mode:
