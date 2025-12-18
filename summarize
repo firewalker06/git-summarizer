@@ -1,5 +1,9 @@
 #!/usr/bin/env ruby
 
+require "json"
+require "net/http"
+require "uri"
+
 def default_base_branch
   origin_head = `git rev-parse --abbrev-ref origin/HEAD 2>/dev/null`.strip
   return origin_head.sub("origin/", "") if origin_head.start_with?("origin/")
@@ -38,12 +42,6 @@ else
   PROMPT
 end
 
-IO.popen('pbcopy', 'w') do |f|
-  f << diff
-  f << "\n======================\n"
-  f << prompt
-end
-
 def wrap_in_color(text, color="success")
   color_mapping = {
     "failure" => 31,
@@ -52,4 +50,70 @@ def wrap_in_color(text, color="success")
   "\e[#{color_mapping[color]}m#{text}\e[0m"
 end
 
-puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+def load_env_value(key, env_path = File.expand_path(".env", __dir__))
+  env_value = ENV[key]
+  return env_value unless env_value.nil? || env_value.empty?
+
+  return nil unless File.exist?(env_path)
+
+  File.foreach(env_path) do |line|
+    stripped = line.strip
+    next if stripped.empty? || stripped.start_with?("#")
+    k, value = stripped.split("=", 2)
+    next unless k && value
+    return value.gsub(/\A['"]|['"]\z/, "") if k.strip == key
+  end
+
+  nil
+end
+
+def copy_to_clipboard(text)
+  IO.popen("pbcopy", "w") { |f| f << text }
+end
+
+def fetch_ai_summary(secret_key, content)
+  uri = URI("https://api.openai.com/v1/chat/completions")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+
+  request = Net::HTTP::Post.new(uri)
+  request["Content-Type"] = "application/json"
+  request["Authorization"] = "Bearer #{secret_key}"
+  request.body = {
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: "You summarize git diffs into commit messages or PR descriptions." },
+      { role: "user", content: content },
+    ],
+    temperature: 0.2,
+  }.to_json
+
+  response = http.request(request)
+  unless response.is_a?(Net::HTTPSuccess)
+    raise "OpenAI API request failed (#{response.code}): #{response.body}"
+  end
+
+  body = JSON.parse(response.body)
+  message = body.dig("choices", 0, "message", "content")
+  raise "OpenAI response did not include a message" if message.nil? || message.strip.empty?
+
+  message.strip
+end
+
+payload = "#{diff}\n======================\n#{prompt}"
+openai_secret_key = load_env_value("OPENAI_SECRET_KEY")
+
+begin
+  if openai_secret_key
+    ai_response = fetch_ai_summary(openai_secret_key, payload)
+    copy_to_clipboard(ai_response)
+    puts wrap_in_color("🤖 The recommended Git Commit / Pull Request Message has been copied to your clipboard")
+  else
+    copy_to_clipboard(payload)
+    puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+  end
+rescue => e
+  warn wrap_in_color("⚠️  #{e.message}. Falling back to diff and prompt.", "failure")
+  copy_to_clipboard(payload)
+  puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+end
