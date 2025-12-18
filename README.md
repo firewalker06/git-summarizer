@@ -2,6 +2,8 @@
 
 A tiny Ruby script that copies a git diff and a prompt to your clipboard so you can paste it into an LLM for fast summaries.
 
+[![preview](https://asciinema.org/a/762705.svg)](https://asciinema.org/a/762705)
+
 ## How it works
 
 It behaves differently based on whether you have staged changes:
