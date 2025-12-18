@@ -71,7 +71,7 @@ def copy_to_clipboard(text)
   IO.popen("pbcopy", "w") { |f| f << text }
 end
 
-def fetch_ai_summary(secret_key, content)
+def fetch_ai_summary(secret_key, prompt, diff)
   uri = URI("https://api.openai.com/v1/chat/completions")
   http = Net::HTTP.new(uri.host, uri.port)
   http.use_ssl = true
@@ -82,8 +82,8 @@ def fetch_ai_summary(secret_key, content)
   request.body = {
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: "You summarize git diffs into commit messages or PR descriptions." },
-      { role: "user", content: content },
+      { role: "system", content: prompt },
+      { role: "user", content: diff },
     ],
     temperature: 0.2,
   }.to_json
@@ -100,20 +100,20 @@ def fetch_ai_summary(secret_key, content)
   message.strip
 end
 
-payload = "#{diff}\n======================\n#{prompt}"
+diff_and_prompt = "#{diff}\n======================\n#{prompt}"
 openai_secret_key = load_env_value("OPENAI_SECRET_KEY")
 
 begin
   if openai_secret_key
-    ai_response = fetch_ai_summary(openai_secret_key, payload)
+    ai_response = fetch_ai_summary(openai_secret_key, prompt, diff)
     copy_to_clipboard(ai_response)
     puts wrap_in_color("🤖 The recommended Git Commit / Pull Request Message has been copied to your clipboard")
   else
-    copy_to_clipboard(payload)
+    copy_to_clipboard(diff_and_prompt)
     puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
   end
 rescue => e
   warn wrap_in_color("⚠️  #{e.message}. Falling back to diff and prompt.", "failure")
-  copy_to_clipboard(payload)
+  copy_to_clipboard(diff_and_prompt)
   puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
 end
