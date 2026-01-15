@@ -38,7 +38,7 @@ else
   <<~PROMPT
     Instruction:
       - Write a Pull Request description using the Template below.
-      - Output as a plain-text Markdown code block.
+      - Output in Markdown format.
     Template:
     ## What
     Briefly describe what changes this pull request introduces.
