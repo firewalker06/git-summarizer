@@ -42,6 +42,21 @@ Make sure `~/bin` is on your PATH if you use the symlink approach.
 
 3. Paste the clipboard contents into your LLM of choice.
 
+### Options
+
+- `--no-copy` or `--copy=false`: Output to stdout instead of copying to clipboard. Useful for command chaining:
+  ```bash
+  # Capture output in a variable for commit message
+  ./summarize --no-copy | git commit -F -
+
+  # Or save to a temporary file first
+  ./summarize --no-copy > /tmp/commit_msg.txt && git commit -F /tmp/commit_msg.txt
+
+  # Or use xargs with git commit
+  ./summarize --no-copy | xargs -0 -I {} git commit -m "{}"
+  ```
+- `-h` or `--help`: Show help message
+
 ### Common workflows
 
 - **Commit message**

@@ -4,6 +4,7 @@ require "json"
 require "net/http"
 require "uri"
 require "open3"
+require "optparse"
 
 def default_base_branch
   origin_head = `git rev-parse --abbrev-ref origin/HEAD 2>/dev/null`.strip
@@ -14,6 +15,25 @@ def default_base_branch
 
   "main"
 end
+
+# Parse command-line arguments
+options = { copy: true }
+OptionParser.new do |opts|
+  opts.banner = "Usage: summarize [options]"
+
+  opts.on("--copy=[BOOL]", TrueClass, "Copy to clipboard (default: true)") do |v|
+    options[:copy] = v
+  end
+
+  opts.on("--no-copy", "Do not copy to clipboard (output to stdout)") do
+    options[:copy] = false
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
 
 staged_diff = `git diff --cached`
 has_staged_changes = !`git diff --cached --name-only`.strip.empty?
@@ -123,14 +143,26 @@ approval_flag = load_env_value("APPROVE_AI_REQUEST")
 begin
   if openai_secret_key && consent_granted?(approval_flag)
     ai_response = fetch_ai_summary(openai_secret_key, prompt, diff)
-    copy_to_clipboard(ai_response)
-    puts wrap_in_color("🤖 The recommended Git Commit / Pull Request Message has been copied to your clipboard")
+    if options[:copy]
+      copy_to_clipboard(ai_response)
+      puts wrap_in_color("🤖 The recommended Git Commit / Pull Request Message has been copied to your clipboard")
+    else
+      puts ai_response
+    end
   else
-    copy_to_clipboard(diff_and_prompt)
-    puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+    if options[:copy]
+      copy_to_clipboard(diff_and_prompt)
+      puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+    else
+      puts diff_and_prompt
+    end
   end
 rescue => e
   warn wrap_in_color("⚠️ #{e.message}. Falling back to diff and prompt.", "failure")
-  copy_to_clipboard(diff_and_prompt)
-  puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+  if options[:copy]
+    copy_to_clipboard(diff_and_prompt)
+    puts wrap_in_color("📋 The git diff and prompt have been copied to your clipboard")
+  else
+    puts diff_and_prompt
+  end
 end
